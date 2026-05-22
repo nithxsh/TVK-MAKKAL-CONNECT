@@ -40,13 +40,13 @@ export const OnboardingWizard: React.FC = () => {
       if (authUser) {
         setIsSaving(true);
         try {
-          // Explicitly strip out any undefined values or let firestore handle, but passing userProfile directly works if it's clean
-          // To prevent undefined value errors in firestore:
           const cleanProfile = JSON.parse(JSON.stringify(userProfile));
           await setDoc(doc(db, 'users', authUser.uid), cleanProfile, { merge: true });
           setViewState('dashboard');
         } catch (error) {
           console.error("Error saving profile to Firestore:", error);
+          alert("Notice: Could not sync to cloud database, but you can continue offline!");
+          setViewState('dashboard');
         } finally {
           setIsSaving(false);
         }
