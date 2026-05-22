@@ -33,3 +33,22 @@
 ::-webkit-scrollbar-thumb {
   @apply bg-zinc-200 rounded-full hover:bg-zinc-300 transition-colors;
 }
+
+/* Print Styles for PDF Export */
+@media print {
+  body {
+    background: white !important;
+  }
+  header, 
+  button,
+  .card-floating > div:last-child > button {
+    display: none !important;
+  }
+  .print-hide {
+    display: none !important;
+  }
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+}

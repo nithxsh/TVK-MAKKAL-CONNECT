@@ -2,14 +2,24 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore, Language } from '../store/useStore';
 import { ChevronRight, ChevronLeft, Check, LogIn } from 'lucide-react';
-import { auth, googleProvider } from '../lib/firebase';
+import { auth, googleProvider, db } from '../lib/firebase';
 import { signInWithPopup } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
 import tvkLogo from '../assets/tvk logo.jpg';
 
+const GoogleIcon = () => (
+  <svg viewBox="0 0 24 24" width="20" height="20" xmlns="http://www.w3.org/2000/svg">
+    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+  </svg>
+);
+
 export const OnboardingWizard: React.FC = () => {
-  const { userProfile, setUserProfile, setViewState, authUser, setAuthUser } = useStore();
-  const [step, setStep] = useState(0);
+  const { userProfile, setUserProfile, setViewState, authUser, setAuthUser, onboardingStep: step, setOnboardingStep: setStep } = useStore();
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const isEn = userProfile.language === 'en';
 
   const handleGoogleLogin = async () => {
@@ -25,11 +35,24 @@ export const OnboardingWizard: React.FC = () => {
     }
   };
 
-  const nextStep = () => {
-    if (step === 3 && userProfile.employment !== 'active_farmer') {
-      setStep(5); // Skip Step 4 (Farmer land metrics)
-    } else if (step === 9) {
-      setViewState('dashboard');
+  const nextStep = async () => {
+    if (step === 12) {
+      if (authUser) {
+        setIsSaving(true);
+        try {
+          // Explicitly strip out any undefined values or let firestore handle, but passing userProfile directly works if it's clean
+          // To prevent undefined value errors in firestore:
+          const cleanProfile = JSON.parse(JSON.stringify(userProfile));
+          await setDoc(doc(db, 'users', authUser.uid), cleanProfile, { merge: true });
+          setViewState('dashboard');
+        } catch (error) {
+          console.error("Error saving profile to Firestore:", error);
+        } finally {
+          setIsSaving(false);
+        }
+      } else {
+        setViewState('dashboard');
+      }
     } else {
       setStep(s => s + 1);
     }
@@ -40,10 +63,33 @@ export const OnboardingWizard: React.FC = () => {
       setViewState('landing');
       return;
     }
-    if (step === 5 && userProfile.employment !== 'active_farmer') {
-      setStep(3);
-    } else {
-      setStep(s => Math.max(0, s - 1));
+    setStep(s => Math.max(0, s - 1));
+  };
+
+  const isStepValid = () => {
+    switch (step) {
+      case 1: return !!userProfile.name;
+      case 2: return !!userProfile.gender;
+      case 3: return userProfile.mobileNumber?.length === 10;
+      case 4: return !!userProfile.district && userProfile.pincode?.length === 6;
+      case 5: return !!userProfile.age;
+      case 6: return !!userProfile.employment;
+      case 7: 
+        switch(userProfile.employment) {
+          case 'student': return !!userProfile.studentLevel && !!userProfile.studentInstitutionType;
+          case 'unemployed_youth': return !!userProfile.unemployedQualification;
+          case 'gig_worker': return !!userProfile.gigPlatform && !!userProfile.gigVehicle;
+          case 'active_farmer': return !!userProfile.landArea && !!userProfile.farmerType;
+          case 'fisherman_coastal': return !!userProfile.fishermanType;
+          case 'handloom_weaver': return !!userProfile.weaverLoomType;
+          case 'private_sector': return true;
+          default: return true;
+        }
+      case 8: return true;
+      case 9: return !!userProfile.maritalStatus;
+      case 10: return !!authUser;
+      case 11: return userProfile.isDifferentlyAbled !== undefined;
+      default: return true;
     }
   };
 
@@ -71,13 +117,13 @@ export const OnboardingWizard: React.FC = () => {
 
       <div className="w-full max-w-xl">
         {/* Progress Bar */}
-        <div className="flex gap-2 mb-12">
-          {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((idx) => {
+        <div className="flex gap-1 mb-12">
+          {[...Array(13)].map((_, idx) => {
             const isActive = step >= idx;
             return (
               <div 
                 key={idx} 
-                className={`h-1.5 rounded-full transition-all duration-500 ease-in-out ${isActive ? 'w-8 bg-tvk-maroon' : 'w-2 bg-zinc-200'}`}
+                className={`h-1.5 rounded-full transition-all duration-500 ease-in-out ${isActive ? 'flex-1 bg-tvk-maroon' : 'w-2 bg-zinc-200'}`}
               />
             )
           })}
@@ -135,8 +181,93 @@ export const OnboardingWizard: React.FC = () => {
               </div>
             )}
 
-            {/* Step 2: Age */}
+            {/* Step 2: Gender */}
             {step === 2 && (
+              <div className="space-y-6 sm:space-y-8">
+                <h2 className="text-2xl sm:text-3xl font-black text-zinc-900 tracking-tight">
+                  {isEn ? 'Select your gender' : 'தங்களின் பாலினத்தைத் தேர்ந்தெடுக்கவும்'}
+                </h2>
+                <div className="flex flex-col sm:flex-row gap-4">
+                  {[
+                    { id: 'male', en: 'Male', ta: 'ஆண்' },
+                    { id: 'female', en: 'Female', ta: 'பெண்' },
+                    { id: 'other', en: 'Other', ta: 'மற்றவை' }
+                  ].map((opt) => (
+                    <button
+                      key={opt.id}
+                      onClick={() => {
+                        setUserProfile({ gender: opt.id as any });
+                        nextStep();
+                      }}
+                      className={`flex-1 px-6 sm:px-8 py-4 sm:py-5 rounded-2xl border-2 font-black text-base sm:text-lg transition-all duration-300
+                        ${userProfile.gender === opt.id 
+                          ? 'border-tvk-maroon bg-tvk-maroon/5 text-tvk-maroon' 
+                          : 'border-zinc-100 bg-white text-zinc-400 hover:border-zinc-200'}`}
+                    >
+                      {isEn ? opt.en : opt.ta}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Step 3: Mobile Number */}
+            {step === 3 && (
+              <div className="space-y-6 sm:space-y-8">
+                <h2 className="text-2xl sm:text-3xl font-black text-zinc-900 tracking-tight">
+                  {isEn ? 'Enter your mobile number' : 'உங்கள் மொபைல் எண்ணை உள்ளிடவும்'}
+                </h2>
+                <div className="flex gap-4">
+                  <div className="bg-zinc-50 border-2 border-zinc-100 rounded-2xl px-4 py-4 sm:py-6 text-xl sm:text-2xl font-bold text-zinc-400 flex items-center">
+                    +91
+                  </div>
+                  <input 
+                    type="tel" 
+                    maxLength={10}
+                    autoFocus
+                    placeholder="9876543210"
+                    value={userProfile.mobileNumber}
+                    onChange={(e) => setUserProfile({ mobileNumber: e.target.value.replace(/\D/g, '') })}
+                    className="flex-1 w-full text-xl sm:text-2xl font-bold bg-zinc-50 border-2 border-zinc-100 focus:border-tvk-yellow rounded-2xl px-6 sm:px-8 py-4 sm:py-6 outline-none transition-all duration-300"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Step 4: District & Pincode */}
+            {step === 4 && (
+              <div className="space-y-6 sm:space-y-8">
+                <h2 className="text-2xl sm:text-3xl font-black text-zinc-900 tracking-tight">
+                  {isEn ? 'Location details' : 'இருப்பிட விவரங்கள்'}
+                </h2>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-xs font-black uppercase tracking-widest text-zinc-500 block mb-2">{isEn ? 'District' : 'மாவட்டம்'}</label>
+                    <input 
+                      type="text" 
+                      placeholder={isEn ? "e.g. Chennai" : "உ-ம். சென்னை"}
+                      value={userProfile.district}
+                      onChange={(e) => setUserProfile({ district: e.target.value })}
+                      className="w-full text-lg sm:text-xl font-bold bg-zinc-50 border-2 border-zinc-100 focus:border-tvk-yellow rounded-xl px-6 py-4 outline-none transition-all duration-300"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-black uppercase tracking-widest text-zinc-500 block mb-2">{isEn ? 'Pincode' : 'அஞ்சல் குறியீடு'}</label>
+                    <input 
+                      type="text" 
+                      maxLength={6}
+                      placeholder="600001"
+                      value={userProfile.pincode}
+                      onChange={(e) => setUserProfile({ pincode: e.target.value.replace(/\D/g, '') })}
+                      className="w-full text-lg sm:text-xl font-bold bg-zinc-50 border-2 border-zinc-100 focus:border-tvk-yellow rounded-xl px-6 py-4 outline-none transition-all duration-300"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Step 5: Age */}
+            {step === 5 && (
               <div className="space-y-6 sm:space-y-8">
                 <h2 className="text-2xl sm:text-3xl font-black text-zinc-900 tracking-tight">
                   {isEn ? 'Enter your age' : 'தங்களின் வயது என்ன?'}
@@ -152,8 +283,8 @@ export const OnboardingWizard: React.FC = () => {
               </div>
             )}
 
-            {/* Step 3: Employment */}
-            {step === 3 && (
+            {/* Step 6: Employment */}
+            {step === 6 && (
               <div className="space-y-5 sm:space-y-6">
                 <h2 className="text-2xl sm:text-3xl font-black text-zinc-900 tracking-tight">
                   {isEn ? 'Select your employment status' : 'உங்களின் தற்போதைய வேலைவாய்ப்பு நிலை:'}
@@ -162,7 +293,10 @@ export const OnboardingWizard: React.FC = () => {
                   {employmentOptions.map((opt) => (
                     <button
                       key={opt.id}
-                      onClick={() => setUserProfile({ employment: opt.id })}
+                      onClick={() => {
+                        setUserProfile({ employment: opt.id });
+                        nextStep();
+                      }}
                       className={`text-left px-5 sm:px-6 py-3 sm:py-4 rounded-xl border-2 font-bold text-xs sm:text-sm transition-all duration-300
                         ${userProfile.employment === opt.id 
                           ? 'border-tvk-maroon bg-tvk-maroon/5 text-tvk-maroon' 
@@ -175,49 +309,169 @@ export const OnboardingWizard: React.FC = () => {
               </div>
             )}
 
-            {/* Step 4: Farmer Conditional */}
-            {step === 4 && (
+            {/* Step 7: Employment Specifics */}
+            {step === 7 && (
               <div className="space-y-6 sm:space-y-8">
                 <h2 className="text-2xl sm:text-3xl font-black text-zinc-900 tracking-tight">
-                  {isEn ? 'Total land ownership area (in Acres):' : 'மொத்த நில உடைமை அளவு (ஏக்கரில்):'}
+                  {isEn ? 'Employment Details' : 'வேலைவாய்ப்பு விவரங்கள்'}
                 </h2>
-                <input 
-                  type="number" 
-                  autoFocus
-                  placeholder={isEn ? "e.g. 2.5" : "உ-ம். 2.5"}
-                  value={userProfile.landArea || ''}
-                  onChange={(e) => setUserProfile({ landArea: Number(e.target.value) })}
-                  className="w-full text-xl sm:text-2xl font-bold bg-zinc-50 border-2 border-zinc-100 focus:border-tvk-yellow rounded-2xl px-6 sm:px-8 py-4 sm:py-6 outline-none transition-all duration-300"
-                />
+                <div className="space-y-4">
+                  
+                  {userProfile.employment === 'student' && (
+                    <>
+                      <select value={userProfile.studentLevel || ''} onChange={e => setUserProfile({studentLevel: e.target.value})} className="w-full text-lg font-bold bg-zinc-50 border-2 border-zinc-100 rounded-xl px-4 py-4 outline-none">
+                        <option value="" disabled>{isEn ? 'Select Level of Study' : 'கல்வி நிலை'}</option>
+                        <option value="school">{isEn ? 'School (10th/12th)' : 'பள்ளி (10/12ஆம் வகுப்பு)'}</option>
+                        <option value="iti_diploma">{isEn ? 'ITI / Diploma' : 'ஐ.டி.ஐ / பட்டயப்படிப்பு'}</option>
+                        <option value="ug">{isEn ? 'UG (Undergraduate)' : 'இளங்கலை பட்டம்'}</option>
+                        <option value="pg">{isEn ? 'PG (Postgraduate) / Ph.D' : 'முதுகலை பட்டம் / ஆராய்ச்சி'}</option>
+                      </select>
+                      <select value={userProfile.studentInstitutionType || ''} onChange={e => setUserProfile({studentInstitutionType: e.target.value})} className="w-full text-lg font-bold bg-zinc-50 border-2 border-zinc-100 rounded-xl px-4 py-4 outline-none">
+                        <option value="" disabled>{isEn ? 'Institution Type' : 'நிறுவனத்தின் வகை'}</option>
+                        <option value="government">{isEn ? 'Government' : 'அரசு'}</option>
+                        <option value="aided">{isEn ? 'Govt Aided' : 'அரசு உதவிபெறும்'}</option>
+                        <option value="private">{isEn ? 'Private' : 'தனியார்'}</option>
+                      </select>
+                      <label className="flex items-center gap-3 p-4 bg-zinc-50 border-2 border-zinc-100 rounded-xl cursor-pointer">
+                        <input type="checkbox" checked={userProfile.studentFirstGen || false} onChange={e => setUserProfile({studentFirstGen: e.target.checked})} className="w-5 h-5 accent-tvk-maroon"/>
+                        <span className="font-bold text-sm">{isEn ? 'First Generation Learner' : 'முதல் தலைமுறை பட்டதாரி'}</span>
+                      </label>
+                    </>
+                  )}
+
+                  {userProfile.employment === 'unemployed_youth' && (
+                    <>
+                      <select value={userProfile.unemployedQualification || ''} onChange={e => setUserProfile({unemployedQualification: e.target.value})} className="w-full text-lg font-bold bg-zinc-50 border-2 border-zinc-100 rounded-xl px-4 py-4 outline-none">
+                        <option value="" disabled>{isEn ? 'Highest Qualification' : 'உயர்ந்த கல்வித்தகுதி'}</option>
+                        <option value="10th">{isEn ? '10th' : '10ஆம் வகுப்பு'}</option>
+                        <option value="12th">{isEn ? '12th' : '12ஆம் வகுப்பு'}</option>
+                        <option value="degree">{isEn ? 'Degree' : 'பட்டம்'}</option>
+                        <option value="diploma">{isEn ? 'Diploma' : 'பட்டயப்படிப்பு'}</option>
+                      </select>
+                      <label className="flex items-center gap-3 p-4 bg-zinc-50 border-2 border-zinc-100 rounded-xl cursor-pointer">
+                        <input type="checkbox" checked={userProfile.unemployedRegistered || false} onChange={e => setUserProfile({unemployedRegistered: e.target.checked})} className="w-5 h-5 accent-tvk-maroon"/>
+                        <span className="font-bold text-sm">{isEn ? 'Registered in Employment Exchange?' : 'வேலைவாய்ப்பு அலுவலகத்தில் பதிவு செய்துள்ளீர்களா?'}</span>
+                      </label>
+                    </>
+                  )}
+
+                  {userProfile.employment === 'gig_worker' && (
+                    <>
+                      <select value={userProfile.gigPlatform || ''} onChange={e => setUserProfile({gigPlatform: e.target.value})} className="w-full text-lg font-bold bg-zinc-50 border-2 border-zinc-100 rounded-xl px-4 py-4 outline-none">
+                        <option value="" disabled>{isEn ? 'Primary Platform' : 'முதன்மை தளம்'}</option>
+                        <option value="swiggy_zomato">{isEn ? 'Swiggy / Zomato' : 'ஸ்விக்கி / சொமாட்டோ'}</option>
+                        <option value="uber_ola">{isEn ? 'Uber / Ola' : 'உபெர் / ஓலா'}</option>
+                        <option value="rapido">{isEn ? 'Rapido' : 'ராபிடோ'}</option>
+                        <option value="other">{isEn ? 'Other' : 'மற்றவை'}</option>
+                      </select>
+                      <select value={userProfile.gigVehicle || ''} onChange={e => setUserProfile({gigVehicle: e.target.value})} className="w-full text-lg font-bold bg-zinc-50 border-2 border-zinc-100 rounded-xl px-4 py-4 outline-none">
+                        <option value="" disabled>{isEn ? 'Vehicle Type' : 'வாகனத்தின் வகை'}</option>
+                        <option value="2w">{isEn ? '2-Wheeler' : 'இருசக்கர வாகனம்'}</option>
+                        <option value="3w">{isEn ? '3-Wheeler (Auto)' : 'முச்சக்கர வாகனம் (ஆட்டோ)'}</option>
+                        <option value="4w">{isEn ? '4-Wheeler (Cab)' : 'நான்கு சக்கர வாகனம் (கார்)'}</option>
+                      </select>
+                      <label className="flex items-center gap-3 p-4 bg-zinc-50 border-2 border-zinc-100 rounded-xl cursor-pointer">
+                        <input type="checkbox" checked={userProfile.gigRegisteredWelfare || false} onChange={e => setUserProfile({gigRegisteredWelfare: e.target.checked})} className="w-5 h-5 accent-tvk-maroon"/>
+                        <span className="font-bold text-sm">{isEn ? 'Registered with Welfare Board?' : 'நல வாரியத்தில் பதிவு செய்துள்ளீர்களா?'}</span>
+                      </label>
+                    </>
+                  )}
+
+                  {userProfile.employment === 'active_farmer' && (
+                    <>
+                      <div>
+                        <label className="text-xs font-black uppercase tracking-widest text-zinc-500 block mb-2">{isEn ? 'Land Area (Acres)' : 'நில அளவு (ஏக்கரில்)'}</label>
+                        <input 
+                          type="number" 
+                          placeholder="e.g. 2.5"
+                          value={userProfile.landArea || ''}
+                          onChange={(e) => setUserProfile({ landArea: Number(e.target.value) })}
+                          className="w-full text-lg font-bold bg-zinc-50 border-2 border-zinc-100 rounded-xl px-4 py-4 outline-none"
+                        />
+                      </div>
+                      <select value={userProfile.farmerType || ''} onChange={e => setUserProfile({farmerType: e.target.value as any})} className="w-full text-lg font-bold bg-zinc-50 border-2 border-zinc-100 rounded-xl px-4 py-4 outline-none">
+                        <option value="" disabled>{isEn ? 'Farmer Type' : 'விவசாயி வகை'}</option>
+                        <option value="landowner">{isEn ? 'Landowner' : 'சொந்த நிலம்'}</option>
+                        <option value="tenant">{isEn ? 'Tenant / Kuthagai' : 'குத்தகை'}</option>
+                      </select>
+                      <label className="flex items-center gap-3 p-4 bg-zinc-50 border-2 border-zinc-100 rounded-xl cursor-pointer">
+                        <input type="checkbox" checked={userProfile.farmerPmKisan || false} onChange={e => setUserProfile({farmerPmKisan: e.target.checked})} className="w-5 h-5 accent-tvk-maroon"/>
+                        <span className="font-bold text-sm">{isEn ? 'Do you have a PM-KISAN/State ID?' : 'PM-KISAN/அரசு ஐடி உள்ளதா?'}</span>
+                      </label>
+                    </>
+                  )}
+
+                  {userProfile.employment === 'fisherman_coastal' && (
+                    <>
+                      <select value={userProfile.fishermanType || ''} onChange={e => setUserProfile({fishermanType: e.target.value})} className="w-full text-lg font-bold bg-zinc-50 border-2 border-zinc-100 rounded-xl px-4 py-4 outline-none">
+                        <option value="" disabled>{isEn ? 'Type of Fishing' : 'மீன்பிடி வகை'}</option>
+                        <option value="mechanized">{isEn ? 'Mechanized Boat' : 'விசைப்படகு'}</option>
+                        <option value="non_mechanized">{isEn ? 'Country Boat' : 'நாட்டுப்படகு'}</option>
+                        <option value="inland">{isEn ? 'Inland' : 'உள்நாட்டு மீன்பிடி'}</option>
+                      </select>
+                      <label className="flex items-center gap-3 p-4 bg-zinc-50 border-2 border-zinc-100 rounded-xl cursor-pointer">
+                        <input type="checkbox" checked={userProfile.fishermanRegistered || false} onChange={e => setUserProfile({fishermanRegistered: e.target.checked})} className="w-5 h-5 accent-tvk-maroon"/>
+                        <span className="font-bold text-sm">{isEn ? 'Fishermen Cooperative Member?' : 'மீனவர் கூட்டுறவு சங்க உறுப்பினரா?'}</span>
+                      </label>
+                    </>
+                  )}
+
+                  {userProfile.employment === 'handloom_weaver' && (
+                    <>
+                      <select value={userProfile.weaverLoomType || ''} onChange={e => setUserProfile({weaverLoomType: e.target.value as any})} className="w-full text-lg font-bold bg-zinc-50 border-2 border-zinc-100 rounded-xl px-4 py-4 outline-none">
+                        <option value="" disabled>{isEn ? 'Loom Type' : 'தறி வகை'}</option>
+                        <option value="handloom">{isEn ? 'Handloom' : 'கைத்தறி'}</option>
+                        <option value="powerloom">{isEn ? 'Powerloom' : 'விசைத்தறி'}</option>
+                      </select>
+                      <label className="flex items-center gap-3 p-4 bg-zinc-50 border-2 border-zinc-100 rounded-xl cursor-pointer">
+                        <input type="checkbox" checked={userProfile.weaverCoop || false} onChange={e => setUserProfile({weaverCoop: e.target.checked})} className="w-5 h-5 accent-tvk-maroon"/>
+                        <span className="font-bold text-sm">{isEn ? 'Part of Cooperative Society?' : 'கூட்டுறவு சங்கத்தில் உறுப்பினரா?'}</span>
+                      </label>
+                    </>
+                  )}
+
+                  {userProfile.employment === 'private_sector' && (
+                    <>
+                      <label className="flex items-center gap-3 p-4 bg-zinc-50 border-2 border-zinc-100 rounded-xl cursor-pointer">
+                        <input type="checkbox" checked={userProfile.privateVendor || false} onChange={e => setUserProfile({privateVendor: e.target.checked})} className="w-5 h-5 accent-tvk-maroon"/>
+                        <span className="font-bold text-sm">{isEn ? 'Are you a Street Vendor?' : 'நீங்கள் தெரு வியாபாரியா?'}</span>
+                      </label>
+                      <label className="flex items-center gap-3 p-4 bg-zinc-50 border-2 border-zinc-100 rounded-xl cursor-pointer">
+                        <input type="checkbox" checked={userProfile.privatePfEsi || false} onChange={e => setUserProfile({privatePfEsi: e.target.checked})} className="w-5 h-5 accent-tvk-maroon"/>
+                        <span className="font-bold text-sm">{isEn ? 'Do you have PF / ESI?' : 'உங்களுக்கு PF / ESI உள்ளதா?'}</span>
+                      </label>
+                    </>
+                  )}
+                </div>
               </div>
             )}
 
-            {/* Step 5: Income */}
-            {step === 5 && (
+            {/* Step 8: Income */}
+            {step === 8 && (
               <div className="space-y-6 sm:space-y-8">
                 <h2 className="text-2xl sm:text-3xl font-black text-zinc-900 tracking-tight">
                   {isEn ? 'Enter your monthly family income (₹):' : 'குடும்பத்தின் மாத வருமானம் (₹):'}
                 </h2>
                 <div className="space-y-6">
-                  <input 
-                    type="range" 
-                    min="0" 
-                    max="100000" 
-                    step="1000"
-                    value={userProfile.monthlyIncome}
-                    onChange={(e) => setUserProfile({ monthlyIncome: Number(e.target.value) })}
-                    className="w-full h-2 bg-zinc-100 rounded-lg appearance-none cursor-pointer accent-tvk-maroon"
-                  />
-                  <div className="text-center">
-                    <span className="text-3xl sm:text-4xl font-black text-tvk-maroon">₹{userProfile.monthlyIncome.toLocaleString()}</span>
-                    <span className="text-zinc-400 font-bold ml-2">/ month</span>
+                  <div className="flex gap-4">
+                    <div className="bg-zinc-50 border-2 border-zinc-100 rounded-2xl px-4 py-4 sm:py-6 text-xl sm:text-2xl font-bold text-zinc-400 flex items-center">
+                      ₹
+                    </div>
+                    <input 
+                      type="number" 
+                      autoFocus
+                      placeholder={isEn ? "e.g. 15000" : "உ-ம். 15000"}
+                      value={userProfile.monthlyIncome || ''}
+                      onChange={(e) => setUserProfile({ monthlyIncome: Number(e.target.value) })}
+                      className="flex-1 w-full text-xl sm:text-2xl font-bold bg-zinc-50 border-2 border-zinc-100 focus:border-tvk-yellow rounded-2xl px-6 sm:px-8 py-4 sm:py-6 outline-none transition-all duration-300 appearance-none"
+                    />
                   </div>
                 </div>
               </div>
             )}
 
-            {/* Step 6: Marital */}
-            {step === 6 && (
+            {/* Step 9: Marital */}
+            {step === 9 && (
               <div className="space-y-6 sm:space-y-8">
                 <h2 className="text-2xl sm:text-3xl font-black text-zinc-900 tracking-tight">
                   {isEn ? 'Select your marital status:' : 'உங்களின் திருமண நிலை என்ன?'}
@@ -229,7 +483,10 @@ export const OnboardingWizard: React.FC = () => {
                   ].map((opt) => (
                     <button
                       key={opt.id}
-                      onClick={() => setUserProfile({ maritalStatus: opt.id as 'single' | 'married' })}
+                      onClick={() => {
+                        setUserProfile({ maritalStatus: opt.id as 'single' | 'married' });
+                        nextStep();
+                      }}
                       className={`flex-1 px-6 sm:px-8 py-4 sm:py-5 rounded-2xl border-2 font-black text-base sm:text-lg transition-all duration-300
                         ${userProfile.maritalStatus === opt.id 
                           ? 'border-tvk-maroon bg-tvk-maroon/5 text-tvk-maroon' 
@@ -242,8 +499,8 @@ export const OnboardingWizard: React.FC = () => {
               </div>
             )}
 
-            {/* Step 7: Login */}
-            {step === 7 && (
+            {/* Step 10: Login */}
+            {step === 10 && (
               <div className="space-y-6 sm:space-y-8 text-center">
                 <h2 className="text-2xl sm:text-3xl font-black text-zinc-900 tracking-tight">
                   {isEn ? 'Verify Your Identity' : 'அடையாளத்தை உறுதிப்படுத்தவும்'}
@@ -262,7 +519,7 @@ export const OnboardingWizard: React.FC = () => {
                       </div>
                       <div className="text-left">
                         <p className="text-[10px] font-black text-green-600 uppercase tracking-widest">Verified</p>
-                        <p className="text-base sm:text-lg font-black text-zinc-900">{authUser.displayName}</p>
+                        <p className="text-base sm:text-lg font-black text-zinc-900">{userProfile.name || authUser.displayName}</p>
                       </div>
                     </div>
                   ) : (
@@ -275,7 +532,7 @@ export const OnboardingWizard: React.FC = () => {
                         {isLoggingIn ? (
                           <div className="w-5 h-5 sm:w-6 sm:h-6 border-4 border-tvk-maroon/20 border-t-tvk-maroon rounded-full animate-spin" />
                         ) : (
-                          <LogIn size={20} className="text-tvk-maroon" />
+                          <GoogleIcon />
                         )}
                         <span className="text-base sm:text-lg font-black text-zinc-700">
                           {isEn ? 'Continue with Google' : 'கூகுள் மூலம் தொடரவும்'}
@@ -290,8 +547,8 @@ export const OnboardingWizard: React.FC = () => {
               </div>
             )}
 
-            {/* Step 8: Disability */}
-            {step === 8 && (
+            {/* Step 11: Disability */}
+            {step === 11 && (
               <div className="space-y-6 sm:space-y-8">
                 <h2 className="text-2xl sm:text-3xl font-black text-zinc-900 tracking-tight">
                   {isEn ? 'Do you have any physical disability?' : 'உங்களுக்கு ஏதேனும் உடல் ஊனம் உள்ளதா?'}
@@ -319,8 +576,8 @@ export const OnboardingWizard: React.FC = () => {
               </div>
             )}
 
-            {/* Step 9: Final Review */}
-            {step === 9 && (
+            {/* Step 12: Final Review */}
+            {step === 12 && (
               <div className="space-y-6 sm:space-y-8 text-center">
                 <div className="w-16 h-16 sm:w-20 sm:h-20 bg-tvk-yellow/20 text-tvk-maroon rounded-full flex items-center justify-center mx-auto mb-4 sm:mb-6">
                   <Check size={32} className="stroke-[3]" />
@@ -347,18 +604,14 @@ export const OnboardingWizard: React.FC = () => {
               {step > 0 && (
                 <button 
                   onClick={nextStep}
-                  disabled={
-                    (step === 1 && !userProfile.name) ||
-                    (step === 2 && !userProfile.age) ||
-                    (step === 3 && !userProfile.employment) ||
-                    (step === 4 && !userProfile.landArea) ||
-                    (step === 7 && !authUser)
-                  }
+                  disabled={!isStepValid() || isSaving}
                   className={`flex items-center gap-2 bg-tvk-maroon text-white px-6 sm:px-8 py-3 sm:py-4 rounded-xl font-black uppercase tracking-widest text-[10px] sm:text-xs transition hover:scale-105 active:scale-95 disabled:opacity-20 disabled:scale-100
-                    ${(step === 7 && !authUser) ? 'hidden' : 'flex'}`}
+                    ${(step === 10 && !authUser) ? 'hidden' : 'flex'}`}
                 >
-                  {step === 9 ? (isEn ? 'Complete →' : 'முடிக்க →') : (isEn ? 'Continue' : 'தொடர')}
-                  {step !== 9 && <ChevronRight size={14} />}
+                  {isSaving ? (
+                    <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                  ) : step === 12 ? (isEn ? 'Complete →' : 'முடிக்க →') : (isEn ? 'Continue' : 'தொடர')}
+                  {!isSaving && step !== 12 && <ChevronRight size={14} />}
                 </button>
               )}
             </div>

@@ -8,15 +8,27 @@ interface Scheme {
   description: { en: string; ta: string };
   benefit: string;
   checklist: string[];
+  link?: string;
 }
 
 interface SchemeCardProps {
   scheme: Scheme;
   isEn: boolean;
+  onApply?: () => void;
+  applyUrl?: string;
 }
 
-export const SchemeCard: React.FC<SchemeCardProps> = ({ scheme, isEn }) => {
+export const SchemeCard: React.FC<SchemeCardProps> = ({ scheme, isEn, onApply, applyUrl }) => {
   const [isExpanded, setIsExpanded] = useState(false);
+
+  const handleApply = () => {
+    if (onApply) {
+      onApply();
+    } else {
+      const url = scheme.link || applyUrl || 'https://www.tnesevai.tn.gov.in/';
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
+  };
 
   return (
     <div className="bg-white border border-zinc-100 rounded-[2rem] p-6 sm:p-8 flex flex-col justify-between transition-all duration-300 hover:shadow-[0_20px_60px_-15px_rgba(0,0,0,0.1)] group">
@@ -77,8 +89,11 @@ export const SchemeCard: React.FC<SchemeCardProps> = ({ scheme, isEn }) => {
       </div>
 
       <div className="pt-8">
-        <button className="w-full py-4 bg-tvk-maroon text-white rounded-xl text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition hover:bg-tvk-maroon/90 active:scale-[0.98]">
-          Apply Now
+        <button
+          onClick={handleApply}
+          className="w-full py-4 bg-tvk-maroon text-white rounded-xl text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition hover:bg-tvk-maroon/90 active:scale-[0.98]"
+        >
+          {isEn ? 'Apply Now' : 'விண்ணப்பிக்க'}
           <ArrowUpRight size={14} />
         </button>
       </div>

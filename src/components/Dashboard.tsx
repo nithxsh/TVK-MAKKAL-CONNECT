@@ -9,13 +9,13 @@ export const Dashboard: React.FC = () => {
   const { userProfile, resetProfile, authUser, setViewState } = useStore();
   const isEn = userProfile.language === 'en';
   const [dailyKms, setDailyKms] = useState(100);
-  const displayName = authUser?.displayName || userProfile.name;
+  const displayName = userProfile.name || authUser?.displayName;
 
   // Filtering Logic
   const getEligibleSchemes = () => {
     const schemes: any[] = [];
-    const age = userProfile.age;
-    const annualIncome = userProfile.monthlyIncome * 12;
+    const age = userProfile.age || 0;
+    const annualIncome = (userProfile.monthlyIncome || 0) * 12;
     const incomeQualified = annualIncome <= 500000;
 
     // RULE A: Global Age Override
@@ -27,6 +27,7 @@ export const Dashboard: React.FC = () => {
           benefit: '₹3,000 / month',
           description: { en: 'Direct monthly financial payout to citizens above 60.', ta: '60 வயதிற்கு மேற்பட்ட குடிமக்களுக்கு நேரடி மாதாந்திர நிதியுதவி.' },
           checklist: ['Aadhaar Card', 'Ration Card', 'Bank Passbook'],
+          link: 'https://www.tnesevai.tn.gov.in/Citizen/PortalLogin.aspx'
         },
         {
           id: 'SEN_02',
@@ -34,6 +35,7 @@ export const Dashboard: React.FC = () => {
           benefit: 'Special Grants + Training',
           description: { en: 'Specialized monthly cash assistance and vocational training grants.', ta: 'சிறப்பு மாதாந்திர பண உதவி மற்றும் தொழிற்பயிற்சி மானியங்கள்.' },
           checklist: ['Death Certificate of Spouse (if applicable)', 'Income Proof'],
+          link: 'https://www.tnesevai.tn.gov.in/Citizen/PortalLogin.aspx'
         }
       ];
     }
@@ -47,6 +49,7 @@ export const Dashboard: React.FC = () => {
           benefit: '₹5,000 / month',
           description: { en: 'Monthly security pension raised to ₹5,000 paired with caregiver subventions.', ta: 'மாற்றுத்திறனாளிகளுக்கான மாதாந்திர ஓய்வூதியம் ₹5,000 ஆக உயர்த்தப்பட்டு பராமரிப்பு நிதியுதவியும் வழங்கப்படும்.' },
           checklist: ['Disability ID Card', 'Medical Certificate'],
+          link: 'https://www.tnesevai.tn.gov.in/Citizen/PortalLogin.aspx'
         },
         {
           id: 'DIS_02',
@@ -54,12 +57,33 @@ export const Dashboard: React.FC = () => {
           benefit: 'Hardware + Mobility Tokens',
           description: { en: 'Access tokens for smart assistive mobility hardware and screen readers.', ta: 'ஸ்மார்ட் உதவி உபகரணங்கள் மற்றும் திரை வாசகர்களுக்கான அணுகல் டோக்கன்கள்.' },
           checklist: ['Disability ID Card'],
+          link: 'https://www.tnesevai.tn.gov.in/Citizen/PortalLogin.aspx'
         }
       );
     }
 
     // RULE B: Job Sector Matrix
     if (userProfile.employment === 'student') {
+      if (userProfile.studentInstitutionType === 'government') {
+        schemes.push({
+          id: 'STU_03',
+          title: { en: 'Pudhumai Penn / Tamil Puthalvan Scheme', ta: 'புதுமைப் பெண் / தமிழ்ப் புதல்வன் திட்டம்' },
+          benefit: '₹1,000 / month',
+          description: { en: 'Direct cash transfer for higher education students from govt schools.', ta: 'அரசுப் பள்ளிகளில் பயின்று உயர்கல்வி தொடரும் மாணவர்களுக்கான மாதாந்திர உதவி.' },
+          checklist: ['College ID', '10th/12th Marksheet', 'Aadhaar'],
+          link: 'https://pudhumaipenn.tn.gov.in/'
+        });
+      }
+      if (userProfile.studentFirstGen) {
+        schemes.push({
+          id: 'STU_04',
+          title: { en: 'First Generation Graduate Scholarship', ta: 'முதல் தலைமுறை பட்டதாரி சலுகை' },
+          benefit: 'Full Tuition Waiver',
+          description: { en: 'Complete tuition fee waiver for the first graduate in the family.', ta: 'குடும்பத்தில் முதல் பட்டதாரியாக இருப்பவர்களுக்கு முழு கல்விக் கட்டண விலக்கு.' },
+          checklist: ['First Graduate Certificate', 'Income Certificate'],
+          link: 'https://www.tnesevai.tn.gov.in/Citizen/PortalLogin.aspx'
+        });
+      }
       if (age <= 21) {
         schemes.push({
           id: 'STU_01',
@@ -67,6 +91,7 @@ export const Dashboard: React.FC = () => {
           benefit: 'Full Interest Absorption',
           description: { en: 'Protection from early financial debt for undergraduate students.', ta: 'பட்டம் பயிலும் மாணவர்களுக்கு ஆரம்பக்கால கடன் சுமையிலிருந்து பாதுகாப்பு.' },
           checklist: ['Student ID', 'Loan Sanction Letter'],
+          link: 'https://www.vidyalakshmi.co.in/Students/'
         });
         schemes.push({
           id: 'STU_02',
@@ -74,95 +99,133 @@ export const Dashboard: React.FC = () => {
           benefit: 'Laptop + Travel Pass',
           description: { en: 'Distribution of high-end laptops and free transport for students.', ta: 'மாணவர்களுக்கு உயர்தர மடிக்கணினிகள் மற்றும் இலவச போக்குவரத்து வசதி.' },
           checklist: ['Student ID'],
-        });
-      } else if (age <= 25) {
-        schemes.push({
-          id: 'EMP_02',
-          title: { en: 'Skill Placement & Employment Assistance', ta: 'திறன் மேம்பாட்டுப் பயிற்சி மற்றும் வேலைவாய்ப்பு உறுதி' },
-          benefit: '₹10,000 / month Stipend',
-          description: { en: 'Specialized industrial internships with active monthly stipends.', ta: 'மாதாந்திர உதவித்தொகையுடன் கூடிய சிறப்புத் தொழிற்துறை பயிற்சிகள்.' },
-          checklist: ['Degree Certificate'],
+          link: 'https://www.tnesevai.tn.gov.in/Citizen/PortalLogin.aspx'
         });
       }
     }
 
     if (userProfile.employment === 'unemployed_youth' && incomeQualified) {
-      const desc = age <= 25 
-        ? { en: 'Job-Hunting and Application Cost Stipend.', ta: 'வேலை தேடும் மற்றும் விண்ணப்பச் செலவுகளுக்கான உதவித்தொகை.' }
-        : { en: 'Critical temporary Household Livelihood Support Cushion.', ta: 'குடும்ப வாழ்வாதாரத்திற்கான தற்காலிக பாதுகாப்பு நிதி.' };
-      
-      schemes.push({
-        id: 'EMP_01',
-        title: { en: 'Monthly Unemployment Allowance', ta: 'மாதாந்திர வேலைவாய்ப்பற்றோர் ஊக்கத்தொகை' },
-        benefit: '₹4,000 / month',
-        description: desc,
-        checklist: ['Employment Exchange Card', 'Address Proof'],
-      });
+      if (userProfile.unemployedRegistered) {
+        schemes.push({
+          id: 'EMP_01',
+          title: { en: 'State Unemployment Allowance', ta: 'மாநில வேலைவாய்ப்பற்றோர் ஊக்கத்தொகை' },
+          benefit: '₹4,000 / month',
+          description: { en: 'Monthly allowance for registered youth actively seeking jobs.', ta: 'பதிவு செய்து வேலை தேடும் இளைஞர்களுக்கான மாதாந்திர உதவித்தொகை.' },
+          checklist: ['Employment Exchange Card', 'Address Proof'],
+          link: 'https://tnvelaivaaippu.gov.in/'
+        });
+      }
       schemes.push({
         id: 'EMP_02',
         title: { en: 'Skill Placement & Employment Assistance', ta: 'திறன் மேம்பாட்டுப் பயிற்சி மற்றும் வேலைவாய்ப்பு உறுதி' },
         benefit: 'Priority Placement',
         description: { en: 'Direct priority placement into state-linked industrial pipelines.', ta: 'அரசு சார்ந்த தொழில் நிறுவனங்களில் முன்னுரிமை வேலைவாய்ப்பு.' },
         checklist: ['Qualification Proof'],
+        link: 'https://www.tnskill.tn.gov.in/'
       });
     }
 
     if (userProfile.employment === 'gig_worker') {
+      if (userProfile.gigRegisteredWelfare) {
+        schemes.push({
+          id: 'GIG_02',
+          title: { en: 'Gig Worker Welfare Board Cover', ta: 'நல வாரிய காப்பீடு' },
+          benefit: 'Medical + Accident Cover',
+          description: { en: 'Comprehensive insurance shields for gig worker families.', ta: 'ஆப் ஊழியர் குடும்பங்களுக்கான முழுமையான காப்பீட்டுப் பாதுகாப்பு.' },
+          checklist: ['Welfare Board Card'],
+          link: 'https://labour.tn.gov.in/'
+        });
+      }
       schemes.push({
         id: 'GIG_01',
         title: { en: '₹20 Minimum Statutory Base Pay', ta: '₹20 குறைந்தபட்ச அடிப்படை ஊதியச் சட்டம்' },
         benefit: 'Flat ₹20/km Rate',
         description: { en: 'Legally mandated base rate to insulate livelihoods from fuel spikes.', ta: 'எரிபொருள் விலை உயர்விலிருந்து வாழ்வாதாரத்தைப் பாதுகாக்க சட்டபூர்வ அடிப்படை ஊதியம்.' },
         checklist: ['Delivery ID Card', 'Vehicle Documents'],
+        link: 'https://labour.tn.gov.in/'
       });
-      if (age <= 25) {
+    }
+
+    if (userProfile.employment === 'active_farmer') {
+      if (userProfile.farmerPmKisan === false) {
         schemes.push({
-          id: 'GIG_03',
-          title: { en: 'Anti-Algorithmic Target Exploitation Ban', ta: 'அல்காரிதம் சுரண்டல் தடை' },
-          benefit: 'Target-Free Earnings',
-          description: { en: 'Removal of predatory algorithmic pressure for young riders.', ta: 'இளம் ஊழியர்களுக்கான கட்டாய இலக்கு அழுத்தங்களிலிருந்து விடுதலை.' },
-          checklist: ['Platform Registration Proof'],
+          id: 'AGR_03',
+          title: { en: 'PM-KISAN Setup Assistance', ta: 'PM-KISAN பதிவு உதவி' },
+          benefit: '₹6,000 / year',
+          description: { en: 'Direct income support for landholding farmer families.', ta: 'நிலம் வைத்துள்ள விவசாயக் குடும்பங்களுக்கு நேரடி வருமான ஆதரவு.' },
+          checklist: ['Patta / Chitta', 'Aadhaar', 'Bank Account'],
+          link: 'https://pmkisan.gov.in/'
         });
-      } else {
+      }
+      schemes.push({
+        id: 'AGR_02',
+        title: { en: 'Free Agricultural Power & Subsidy Matrix', ta: 'இலவச விவசாய மின்சாரம் மற்றும் மானியத் திட்டம்' },
+        benefit: '24/7 Power + Machinery Grant',
+        description: { en: 'Focus on modern technology grants and advanced irrigation.', ta: 'நவீன தொழில்நுட்ப மானியங்கள் மற்றும் மேம்பட்ட நீர் பாசன வசதி.' },
+        checklist: ['Land Documents', 'Farmer ID'],
+        link: 'https://www.tangedco.gov.in/'
+      });
+    }
+
+    if (userProfile.employment === 'fisherman_coastal') {
+      if (userProfile.fishermanRegistered) {
         schemes.push({
-          id: 'GIG_02',
-          title: { en: 'Welfare Board Integration', ta: 'நல வாரிய ஒருங்கிணைப்பு' },
-          benefit: 'Medical + Accident Cover',
-          description: { en: 'Comprehensive insurance shields for gig worker families.', ta: 'ஆப் ஊழியர் குடும்பங்களுக்கான முழுமையான காப்பீட்டுப் பாதுகாப்பு.' },
-          checklist: ['Welfare Board Card'],
+          id: 'FSH_01',
+          title: { en: 'Fishing Ban Period Relief', ta: 'மீன்பிடி தடைக்கால நிவாரணம்' },
+          benefit: '₹5,000 / year',
+          description: { en: 'Financial assistance during the annual marine fishing ban period.', ta: 'ஆண்டு மீன்பிடி தடைக்காலத்தின் போது நிதியுதவி.' },
+          checklist: ['Fisherman ID', 'Cooperative Member Book'],
+          link: 'https://www.tnesevai.tn.gov.in/Citizen/PortalLogin.aspx'
         });
       }
     }
 
-    if (userProfile.employment === 'active_farmer') {
-      if (age <= 35) {
+    if (userProfile.employment === 'handloom_weaver') {
+      if (userProfile.weaverCoop) {
         schemes.push({
-          id: 'AGR_02',
-          title: { en: 'Free Agricultural Power & Subsidy Matrix', ta: 'இலவச விவசாய மின்சாரம் மற்றும் மானியத் திட்டம்' },
-          benefit: '24/7 Power + Machinery Grant',
-          description: { en: 'Focus on modern technology grants and advanced irrigation.', ta: 'நவீன தொழில்நுட்ப மானியங்கள் மற்றும் மேம்பட்ட நீர் பாசன வசதி.' },
-          checklist: ['Land Documents', 'Farmer ID'],
+          id: 'WV_01',
+          title: { en: 'Free Electricity Scheme', ta: 'இலவச மின்சாரத் திட்டம்' },
+          benefit: '200 Units Free',
+          description: { en: 'Bi-monthly free electricity for registered handloom weavers.', ta: 'பதிவு செய்யப்பட்ட கைத்தறி நெசவாளர்களுக்கு இரு மாதங்களுக்கு இலவச மின்சாரம்.' },
+          checklist: ['Cooperative Member ID', 'EB Bill'],
+          link: 'https://www.tangedco.gov.in/'
         });
-      } else {
+      }
+    }
+
+    if (userProfile.employment === 'private_sector') {
+      if (userProfile.privateVendor) {
         schemes.push({
-          id: 'AGR_01',
-          title: { en: 'Crop Insurance & MSP Guarantee', ta: 'பயிர்க் காப்பீடு மற்றும் குறைந்தபட்ச ஆதரவு விலை' },
-          benefit: 'Legally Binding MSP',
-          description: { en: 'Climate insulation and legally binding Minimum Support Price.', ta: 'பருவநிலை மாற்றப் பாதுகாப்பு மற்றும் சட்டபூர்வ குறைந்தபட்ச ஆதரவு விலை.' },
-          checklist: ['Land Documents'],
+          id: 'PVT_01',
+          title: { en: 'PM SVANidhi Micro-Credit Scheme', ta: 'PM SVANidhi நுண்கடன் திட்டம்' },
+          benefit: '₹10,000 Micro-loan',
+          description: { en: 'Collateral-free working capital loan for street vendors.', ta: 'தெரு வியாபாரிகளுக்கு பிணையில்லா மூலதனக் கடன்.' },
+          checklist: ['Aadhaar Card', 'Vending Certificate'],
+          link: 'https://pmsvanidhi.mohua.gov.in/'
+        });
+      }
+      if (userProfile.privatePfEsi === false) {
+        schemes.push({
+          id: 'PVT_02',
+          title: { en: 'Unorganized Workers Welfare Board Coverage', ta: 'அமைப்புசாரா தொழிலாளர் நல வாரியக் காப்பீடு' },
+          benefit: 'Accident & Education Assistance',
+          description: { en: 'State safety net for private workers without PF/ESI benefits.', ta: 'PF/ESI இல்லாத தொழிலாளர்களுக்கான மாநில அரசுப் பாதுகாப்பு.' },
+          checklist: ['Aadhaar Card', 'Self Declaration Form'],
+          link: 'https://labour.tn.gov.in/'
         });
       }
     }
 
     // RULE C: Universal Household
     if (incomeQualified) {
-      if (userProfile.maritalStatus === 'married') {
+      if (userProfile.maritalStatus === 'married' && userProfile.gender === 'female') {
         schemes.push({
           id: 'HH_01',
           title: { en: 'Madhippumigu Magalir Thittam', ta: 'மதிப்புமிகு மகளிர் திட்டம்' },
           benefit: '₹2,500 / month',
           description: { en: 'Monthly family head grant for female empowerment.', ta: 'பெண்களுக்கு அதிகாரமளிக்க குடும்பத் தலைவிகளுக்கான மாதாந்திர உதவித்தொகை.' },
           checklist: ['Ration Card'],
+          link: 'https://kmut.tn.gov.in/'
         });
         schemes.push({
           id: 'HH_03',
@@ -170,14 +233,16 @@ export const Dashboard: React.FC = () => {
           benefit: '6 Free Refills / Year',
           description: { en: 'Energy security for qualifying households.', ta: 'தகுதியுள்ள குடும்பங்களுக்கான எரிசக்தி பாதுகாப்பு.' },
           checklist: ['Gas Connection ID'],
+          link: 'https://www.mylpg.in/'
         });
-      } else {
+      } else if (userProfile.maritalStatus === 'single') {
         schemes.push({
           id: 'HH_02',
           title: { en: 'Upcoming Marriage Support (Annan Seer)', ta: 'வருங்கால திருமண நிதியுதவி (அண்ணன் சீர்)' },
           benefit: '1 Sovereign Gold + Silk Saree',
           description: { en: 'Direct support for upcoming marriage expenses.', ta: 'வருங்கால திருமணச் செலவுகளுக்கான நேரடி நிதியுதவி.' },
           checklist: ['Aadhaar Card', 'Age Proof'],
+          link: 'https://www.tnesevai.tn.gov.in/Citizen/PortalLogin.aspx'
         });
       }
     }
@@ -189,6 +254,7 @@ export const Dashboard: React.FC = () => {
       benefit: '70% Installation Subsidy',
       description: { en: 'Promoting green energy integration for households.', ta: 'வீடுகளுக்கு பசுமை ஆற்றல் கட்டமைப்பை ஊக்குவித்தல்.' },
       checklist: ['Electricity Bill'],
+      link: 'https://pmsuryaghar.gov.in/'
     });
 
     return schemes;
@@ -318,10 +384,19 @@ export const Dashboard: React.FC = () => {
                   </p>
                 </div>
               </div>
-              <button className="w-full sm:w-auto flex items-center justify-center gap-3 bg-[#25D366] text-white px-6 sm:px-8 py-4 rounded-xl text-xs font-black uppercase tracking-widest transition hover:scale-105 active:scale-95 shadow-lg shadow-green-500/20">
-                <Share2 size={16} />
-                Share on WhatsApp
-              </button>
+              <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto mt-4 sm:mt-0">
+                <button 
+                  onClick={() => window.print()}
+                  className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-tvk-maroon text-tvk-yellow px-6 sm:px-8 py-3 sm:py-4 rounded-xl text-xs font-black uppercase tracking-widest transition hover:scale-105 active:scale-95 shadow-lg shadow-tvk-maroon/20"
+                >
+                  <FileText size={16} />
+                  {isEn ? 'Save PDF' : 'PDF தரவிறக்கு'}
+                </button>
+                <button className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-[#25D366] text-white px-6 sm:px-8 py-3 sm:py-4 rounded-xl text-xs font-black uppercase tracking-widest transition hover:scale-105 active:scale-95 shadow-lg shadow-green-500/20">
+                  <Share2 size={16} />
+                  {isEn ? 'WhatsApp' : 'வாட்ஸ்அப்'}
+                </button>
+              </div>
             </div>
 
             {/* Welcome & Audio */}
