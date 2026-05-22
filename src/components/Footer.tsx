@@ -28,8 +28,16 @@ export const Footer: React.FC = () => {
           <button onClick={() => setActiveModal('disclaimer')} className="hover:text-white transition-colors duration-300">Disclaimer</button>
         </div>
 
-        <div className="text-[10px] font-bold tracking-widest text-center md:text-right">
+        <div className="text-[10px] font-bold tracking-widest text-center md:text-right flex flex-col items-center md:items-end gap-2 mt-4 md:mt-0">
           <p>© 2026 Makkal Connect. All rights reserved.</p>
+          <a 
+            href="https://incognitohack.vercel.app/" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="text-[8px] text-zinc-600 hover:text-zinc-400 transition-colors uppercase flex items-center gap-1"
+          >
+            Built by Incognito Hacks
+          </a>
         </div>
       </div>
 
